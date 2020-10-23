@@ -1,12 +1,16 @@
-
+require('dotenv').config()
 const express = require('express')
 const app = express()
 const morgan = require('morgan')
 const cors = require('cors')
+const mongoose = require('mongoose')
+const Person = require('./models/person.js')
+
 
 app.use(cors())
 app.use(express.json())
 app.use(express.static('build'))
+
 
 morgan.token('body', function getBody (req) {
   return JSON.stringify(req.body)
@@ -43,7 +47,7 @@ app.get('/', (req, res) => {
   const getRandomInt = (min, max) => {
     min = Math.ceil(min);
     max = Math.floor(max);
-    return Math.floor(Math.random() * (max - min) + min); //The maximum is exclusive and the minimum is inclusive
+    return Math.floor(Math.random() * (max - min) + min); 
   }
 
   var today = new Date();  
@@ -54,30 +58,40 @@ app.get('/', (req, res) => {
   })
 
   app.get('/api/persons/:id', (request, response) => {
-    const id = Number(request.params.id)
-    const person = persons.find(person => person.id === id)
-    response.json(person)
+    Person.findById(request.params.id)
+    .then(person => {
+       if (person) {
+         response.json(person)
+       } else {
+         response.status(404).end()
+       }
+    })
+    .catch(error => {
+      console.log(error)
+      response.status(500).end()
+    })
+    
   })
 
   app.delete('/api/persons/:id', (request, response) => {
-    const id = Number(request.params.id)
-    persons = persons.filter(person => person.id !== id)
-  
-    response.status(204).end()
+    Person.findByIdAndRemove(request.params.id)
+      .then(result => {
+        response.status(204).end()
+      })
+      .catch(error => {
+        console.log(error)
+        response.status(500).end()
+      })
+    
   })
 
   app.post('/api/persons', (request, response) => {
-    const maxId = getRandomInt(0, 1000)
+    
     const body = request.body
-    console.log(body)
     const allnames = persons.map(person => person.name)
     const alreadyused = allnames.includes(body.name)
 
-    const person = {
-      name: body.name,
-      number: body.number,
-      id: maxId 
-      }
+    
 
       if (!body.name) {
         return response.status(400).json({ 
@@ -94,19 +108,28 @@ app.get('/', (req, res) => {
           error: 'name is already in use' 
         })
       }
+      const person = new Person({
+        name: body.name,
+        number: body.number
+        })
 
-      persons = persons.concat(person)
-
-    response.json(person)
+      person.save().then(savedPerson => {
+        response.json(savedPerson)
+      })
+      .catch(error => {
+        console.log(error)
+        response.status(500).end()
+      })
+    
   })
   
   app.get('/api/persons', (req, res) => {
-    
-    
-    res.json(persons)
+    Person.find({}).then(persons => {
+      res.json(persons)
+    })  
   })
   
-  const PORT =  process.env.PORT || 3001
+  const PORT =  process.env.PORT
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`)
   })
